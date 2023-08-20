@@ -1,7 +1,5 @@
 # Discord Watcher
 
----
-
 ## Project description
 
 `Discord Watcher` is a Rust application that uses [egui](https://github.com/emilk/egui) for the UI and [serenity](https://github.com/serenity-rs/serenity) to communicate with the Discord API.
@@ -20,7 +18,7 @@
 The only dependencies are rust and cargo. For the crates, it needs the following:
 
 - `serenity`: 0.11.6 (features: client, gateway, rustls_backend, model, cache)
-- `tokio`: 1.29.1 (features: macros, ru-multi-thread)
+- `tokio`: 1.29.1 (features: macros, rt-multi-thread)
 - `dotenv`: 0.15.0
 - `egui` & `eframe`: 0.22.0
 - `egui-phosphor`: 0.2.0
