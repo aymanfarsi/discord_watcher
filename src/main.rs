@@ -1,3 +1,6 @@
+#![warn(clippy::all)]
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::env;
 
 use egui::egui_main::start_egui;
@@ -12,6 +15,7 @@ mod enums;
 mod models;
 mod utils;
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() {
     let args = env::args().nth(1);
 

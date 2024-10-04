@@ -46,16 +46,44 @@ impl eframe::App for AppModel {
                     ctx.request_repaint();
                 }
                 ChannelMessage::UserJoinedChannel(name, channel) => {
-                    self.events.push(format!("{} joined {}", name, channel));
+                    self.events
+                        .insert(0, format!("{} joined {}", name, channel));
                     ctx.request_repaint();
                 }
                 ChannelMessage::UserAlreadyInChannel(name, channel) => {
                     self.events
-                        .push(format!("{} is already in {}", name, channel));
+                        .insert(0, format!("{} is already in {}", name, channel));
                     ctx.request_repaint();
                 }
-                ChannelMessage::UserLeftChannel(name) => {
-                    self.events.push(format!("{} left a channel", name));
+                ChannelMessage::UserLeftChannel(name, channel) => {
+                    self.events.insert(0, format!("{} left {}", name, channel));
+                    ctx.request_repaint();
+                }
+                ChannelMessage::UserDeafened(name, channel) => {
+                    self.events
+                        .insert(0, format!("{} deafened in {}", name, channel));
+                    ctx.request_repaint();
+                }
+                ChannelMessage::UserUndeafened(name, channel) => {
+                    self.events
+                        .insert(0, format!("{} undeafened in {}", name, channel));
+                    ctx.request_repaint();
+                }
+                ChannelMessage::UserMuted(name, channel) => {
+                    self.events
+                        .insert(0, format!("{} muted in {}", name, channel));
+                    ctx.request_repaint();
+                }
+                ChannelMessage::UserUnmuted(name, channel) => {
+                    self.events
+                        .insert(0, format!("{} unmuted in {}", name, channel));
+                    ctx.request_repaint();
+                }
+                ChannelMessage::UserMoved(name, old_channel, new_channel) => {
+                    self.events.insert(
+                        0,
+                        format!("{} moved from {} to {}", name, old_channel, new_channel),
+                    );
                     ctx.request_repaint();
                 }
             }

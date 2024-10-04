@@ -1,7 +1,3 @@
-#![warn(clippy::all)]
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-
-#[cfg(not(target_arch = "wasm32"))]
 pub fn start_egui() -> eframe::Result<()> {
     use std::env;
 

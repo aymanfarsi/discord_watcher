@@ -4,7 +4,12 @@ pub enum ChannelMessage {
     BotConnected(Box<Ready>),
     UserJoinedChannel(String, String),
     UserAlreadyInChannel(String, String),
-    UserLeftChannel(String),
+    UserMuted(String, String),
+    UserUnmuted(String, String),
+    UserDeafened(String, String),
+    UserUndeafened(String, String),
+    UserMoved(String, String, String),
+    UserLeftChannel(String, String),
 }
 
 #[derive(Debug, Clone, Copy)]
