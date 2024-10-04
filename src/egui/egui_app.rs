@@ -1,7 +1,6 @@
 use egui::{
-    epaint::{self, Shadow},
     vec2, Align2, Button, Color32, FontDefinitions, FontId, Id, LayerId, Margin, RichText,
-    ScrollArea, Sense, Stroke, Ui,
+    ScrollArea, Sense, Shadow, Stroke, Ui, UiBuilder, ViewportCommand,
 };
 use tokio::sync::mpsc::Receiver;
 
@@ -39,7 +38,7 @@ impl AppModel {
 }
 
 impl eframe::App for AppModel {
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         if let Ok(rx) = self.rx.try_recv() {
             match rx {
                 ChannelMessage::BotConnected(ready) => {
@@ -60,6 +59,8 @@ impl eframe::App for AppModel {
                     ctx.request_repaint();
                 }
             }
+
+            ctx.request_repaint();
         }
 
         // ! Render events
@@ -81,8 +82,8 @@ impl eframe::App for AppModel {
                     let available_rect = ctx.available_rect();
                     let layer_id = LayerId::background();
                     let id = Id::new("central_panel");
-                    let clip_rect = ctx.screen_rect();
-                    let panel_ui = Ui::new(ctx.clone(), layer_id, id, available_rect, clip_rect);
+                    let ui_builder = UiBuilder::new().max_rect(available_rect);
+                    let panel_ui = Ui::new(ctx.clone(), layer_id, id, ui_builder);
                     egui::Frame::central_panel(panel_ui.style())
                 }
             })
@@ -97,14 +98,14 @@ impl eframe::App for AppModel {
                         rect.max.y = rect.min.y + title_bar_height;
                         rect
                     };
-                    title_bar_ui(ui, frame, title_bar_rect, "Discord Watcher");
+                    title_bar_ui(ui, title_bar_rect, "Discord Watcher");
                     ui.add_space(1.5);
                     ui.separator();
                     ui.add_space(3.);
                 }
 
                 // ! Render top bar
-                render_top_bar(self, ui, frame);
+                render_top_bar(self, ui);
 
                 // ! Title
                 ui.allocate_ui(vec2(ui.available_size_before_wrap().x, 30.), |ui| {
@@ -138,7 +139,7 @@ impl eframe::App for AppModel {
     }
 }
 
-fn title_bar_ui(ui: &mut Ui, frame: &mut eframe::Frame, title_bar_rect: epaint::Rect, title: &str) {
+fn title_bar_ui(ui: &mut Ui, title_bar_rect: egui::Rect, title: &str) {
     let painter = ui.painter();
 
     let title_bar_response = ui.interact(title_bar_rect, Id::new("title_bar"), Sense::click());
@@ -163,22 +164,25 @@ fn title_bar_ui(ui: &mut Ui, frame: &mut eframe::Frame, title_bar_rect: epaint::
 
     // Interact with the title bar (drag to move window):
     if title_bar_response.double_clicked() {
-        frame.set_maximized(!frame.info().window_info.maximized);
+        let is_maximized = ui.input(|i| i.viewport().maximized).unwrap_or(false);
+        ui.ctx()
+            .send_viewport_cmd(ViewportCommand::Maximized(!is_maximized));
     } else if title_bar_response.is_pointer_button_down_on() {
-        frame.drag_window();
+        ui.ctx().send_viewport_cmd(ViewportCommand::StartDrag);
     }
 
-    ui.allocate_ui_at_rect(title_bar_rect, |ui| {
+    let ui_builder = UiBuilder::new().max_rect(title_bar_rect);
+    ui.allocate_new_ui(ui_builder, |ui| {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             ui.visuals_mut().button_frame = false;
             ui.add_space(8.0);
-            close_maximize_minimize(ui, frame);
+            close_maximize_minimize(ui);
         });
     });
 }
 
-fn close_maximize_minimize(ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+fn close_maximize_minimize(ui: &mut egui::Ui) {
     let button_height = 12.0;
 
     let close_response = ui
@@ -187,15 +191,17 @@ fn close_maximize_minimize(ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         ))
         .on_hover_text("Close the window");
     if close_response.clicked() {
-        frame.close();
+        ui.ctx().send_viewport_cmd(ViewportCommand::Close);
     }
 
-    if frame.info().window_info.maximized {
+    let is_maximized = ui.input(|i| i.viewport().maximized).unwrap_or(false);
+    if is_maximized {
         let maximized_response = ui
             .add(Button::new(RichText::new("🗗").size(button_height)))
             .on_hover_text("Restore window");
         if maximized_response.clicked() {
-            frame.set_maximized(false);
+            ui.ctx()
+                .send_viewport_cmd(ViewportCommand::Maximized(false));
         }
     } else {
         let maximized_response = ui
@@ -204,7 +210,7 @@ fn close_maximize_minimize(ui: &mut egui::Ui, frame: &mut eframe::Frame) {
             ))
             .on_hover_text("Maximize window");
         if maximized_response.clicked() {
-            frame.set_maximized(true);
+            ui.ctx().send_viewport_cmd(ViewportCommand::Maximized(true));
         }
     }
 
@@ -212,6 +218,6 @@ fn close_maximize_minimize(ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         .add(Button::new(RichText::new("🗕").size(button_height)))
         .on_hover_text("Minimize the window");
     if minimized_response.clicked() {
-        frame.set_minimized(true);
+        ui.ctx().send_viewport_cmd(ViewportCommand::Minimized(true));
     }
 }

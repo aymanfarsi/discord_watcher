@@ -1,13 +1,13 @@
-use egui::{menu, RichText, Ui};
+use egui::{menu, RichText, Ui, ViewportCommand, WindowLevel};
 
 use super::egui_app::AppModel;
 
-pub fn render_top_bar(app: &mut AppModel, ui: &mut Ui, frame: &mut eframe::Frame) {
+pub fn render_top_bar(app: &mut AppModel, ui: &mut Ui) {
     ui.add_enabled_ui(true, |ui| {
         menu::bar(ui, |ui| {
             ui.menu_button("App", |ui| {
                 if ui.button("Exit").clicked() {
-                    frame.close();
+                    ui.ctx().send_viewport_cmd(ViewportCommand::Close);
                 }
             });
 
@@ -31,7 +31,13 @@ pub fn render_top_bar(app: &mut AppModel, ui: &mut Ui, frame: &mut eframe::Frame
                 );
                 if ui.button(aot_text).clicked() {
                     app.is_always_on_top = !app.is_always_on_top;
-                    frame.set_always_on_top(app.is_always_on_top);
+                    ui.ctx().send_viewport_cmd(ViewportCommand::WindowLevel(
+                        if app.is_always_on_top {
+                            WindowLevel::AlwaysOnTop
+                        } else {
+                            WindowLevel::Normal
+                        },
+                    ));
                     ui.close_menu();
                 }
 
@@ -45,7 +51,8 @@ pub fn render_top_bar(app: &mut AppModel, ui: &mut Ui, frame: &mut eframe::Frame
                 );
                 if ui.button(clear_text).clicked() {
                     app.is_custom_frame = !app.is_custom_frame;
-                    frame.set_decorations(!app.is_custom_frame);
+                    ui.ctx()
+                        .send_viewport_cmd(ViewportCommand::Decorations(!app.is_custom_frame));
                     ui.close_menu();
                 }
             });

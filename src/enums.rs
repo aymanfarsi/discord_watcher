@@ -9,21 +9,21 @@ pub enum ChannelMessage {
 
 #[derive(Debug, Clone, Copy)]
 pub enum NotificationSound {
-    Default,
-    IM,
-    Mail,
+    // Default,
+    // IM,
+    // Mail,
     Reminder,
-    SMS,
+    // SMS,
 }
 
 impl NotificationSound {
     pub fn to_str(self) -> String {
         match self {
-            NotificationSound::Default => "Default",
-            NotificationSound::IM => "IM",
-            NotificationSound::Mail => "Mail",
+            // NotificationSound::Default => "Default",
+            // NotificationSound::IM => "IM",
+            // NotificationSound::Mail => "Mail",
             NotificationSound::Reminder => "Reminder",
-            NotificationSound::SMS => "SMS",
+            // NotificationSound::SMS => "SMS",
         }
         .to_owned()
     }

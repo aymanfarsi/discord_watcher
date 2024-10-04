@@ -1,0 +1,31 @@
+#!/bin/bash
+
+if [[ $(uname -s) == *Darwin* ]]; then
+    echo "Building Discord Watcher for MacOS"
+    cargo install --path .
+elif [[ $(uname -s) == *NT* ]]; then
+    echo "Use the installer to install Discord Watcher on Windows"
+    exit 1
+elif [[ $(uname -s) == *Linux* ]]; then
+    echo "Building Discord Watcher for Linux"
+    cargo install --path .
+    desktop_file=$(
+        cat <<EOM
+[Desktop Entry]
+Type=Application
+Name=Discord Watcher
+Comment=Discord Watcher to keep track of your server voice channels
+Exec=discord_watcher
+Icon=$HOME/.local/share/icons/discord_watcher.png
+Terminal=false
+Categories=Utility;Application;
+EOM
+    )
+    echo "$desktop_file" >$HOME/.local/share/applications/discord_watcher.desktop
+    cp assets/discord_watcher.png $HOME/.local/share/icons/discord_watcher.png
+else
+    echo "Unsupported OS"
+    exit 1
+fi
+
+echo "Discord Watcher built successfully"

@@ -2,6 +2,7 @@
 name = "discord_watcher"
 version = "0.5.1"
 edition = "2021"
+rust-version = "1.71.0"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,19 +14,15 @@ serenity = { version = "0.11.6", default-features = false, features = [
     "model",
     "cache",
 ] }
-tokio = { version = "1.29.1", features = ["macros", "rt-multi-thread"] }
-dotenv = { version = "0.15.0" }
-# relm4 = "0.6.0"
-# relm4-components = "0.6.0"
-notify-rust = "4"
-egui = "0.22.0"
-eframe = { version = "0.22.0", default-features = false, features = [
+tokio = { version = "1.40.0", features = ["macros", "rt-multi-thread"] }
+dotenv = { version = "0.14.1" }
+relm4 = "0.9.0"
+relm4-components = "0.9.1"
+notify-rust = "4.11.3"
+egui = "0.29.1"
+eframe = { version = "0.29.1", default-features = false, features = [
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
 ] }
-egui-phosphor = "0.2.0"
-rodio = "0.17.1"
-
-[package.metadata.scripts]
-run = "cargo run"
-build = "cargo build -r"
+egui-phosphor = "0.7.1"
+rodio = "0.19.0"

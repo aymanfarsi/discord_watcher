@@ -9,10 +9,11 @@ use serenity::{
 };
 use tokio::sync::mpsc::Sender;
 
-use crate::{enums::ChannelMessage, utils::play_sound};
+use crate::{enums::ChannelMessage, utils::{play_sound, push_notification}};
 
 pub struct DiscordEventHandler {
     pub tx: Sender<ChannelMessage>,
+    pub ctx: egui::Context,
 }
 
 #[async_trait]
@@ -23,6 +24,7 @@ impl EventHandler for DiscordEventHandler {
             .send(ChannelMessage::BotConnected(Box::new(ready.clone())))
             .await
             .unwrap();
+        self.ctx.request_repaint();
 
         let guild = ready.guilds[0]
             .id
@@ -57,11 +59,11 @@ impl EventHandler for DiscordEventHandler {
                 };
 
                 for member in joined_members {
-                    // push_notification(&format!(
-                    //     "{} is already in {}",
-                    //     member.user.name.clone(),
-                    //     channel.name.clone()
-                    // ));
+                    push_notification(&format!(
+                        "{} is already in {}",
+                        member.user.name.clone(),
+                        channel.name.clone()
+                    ));
                     play_sound();
 
                     self.tx
@@ -71,6 +73,7 @@ impl EventHandler for DiscordEventHandler {
                         ))
                         .await
                         .unwrap();
+                    self.ctx.request_repaint();
                 }
             }
         }
@@ -95,23 +98,24 @@ impl EventHandler for DiscordEventHandler {
                     .unwrap(),
             },
             None => {
-                // push_notification(&format!("{} left a channel", new_user.name.clone()));
+                push_notification(&format!("{} left a channel", new_user.name.clone()));
                 play_sound();
 
                 self.tx
                     .send(ChannelMessage::UserLeftChannel(new_user.name.clone()))
                     .await
                     .unwrap();
+                self.ctx.request_repaint();
 
                 return;
             }
         };
 
-        // push_notification(&format!(
-        //     "{} joined {}",
-        //     new_user.name.clone(),
-        //     new_voice_channel.name.clone()
-        // ));
+        push_notification(&format!(
+            "{} joined {}",
+            new_user.name.clone(),
+            new_voice_channel.name.clone()
+        ));
         play_sound();
 
         self.tx
@@ -121,5 +125,6 @@ impl EventHandler for DiscordEventHandler {
             ))
             .await
             .unwrap();
+        self.ctx.request_repaint();
     }
 }
