@@ -6,7 +6,7 @@ use std::env;
 use egui::egui_main::start_egui;
 
 pub mod egui {
-    pub mod egui_app;
+    pub mod app;
     pub mod egui_main;
     pub mod top_bar;
 }

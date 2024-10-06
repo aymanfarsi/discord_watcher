@@ -1,7 +1,13 @@
+use std::sync::{
+    atomic::{AtomicBool, Ordering},
+    Arc,
+};
+
 use egui::{
     vec2, Align2, Button, Color32, FontDefinitions, FontId, Id, LayerId, Margin, RichText,
-    ScrollArea, Sense, Shadow, Stroke, Ui, UiBuilder, ViewportCommand,
+    ScrollArea, Sense, Shadow, Stroke, Ui, UiBuilder, ViewportBuilder, ViewportCommand, ViewportId,
 };
+use serenity::model::voice::VoiceState;
 use tokio::sync::mpsc::Receiver;
 
 use crate::enums::ChannelMessage;
@@ -15,6 +21,9 @@ pub struct AppModel {
 
     pub is_always_on_top: bool,
     pub is_custom_frame: bool,
+
+    pub show_debug_info: Arc<AtomicBool>,
+    debug_events: Vec<(Option<VoiceState>, VoiceState)>,
 
     rx: Receiver<ChannelMessage>,
 }
@@ -32,6 +41,9 @@ impl AppModel {
             is_always_on_top: false,
             is_custom_frame: false,
 
+            show_debug_info: Arc::new(AtomicBool::new(false)),
+            debug_events: vec![],
+
             rx,
         }
     }
@@ -43,48 +55,46 @@ impl eframe::App for AppModel {
             match rx {
                 ChannelMessage::BotConnected(ready) => {
                     self.bot_name = Some(ready.user.name);
-                    ctx.request_repaint();
                 }
                 ChannelMessage::UserJoinedChannel(name, channel) => {
                     self.events
                         .insert(0, format!("{} joined {}", name, channel));
-                    ctx.request_repaint();
                 }
                 ChannelMessage::UserAlreadyInChannel(name, channel) => {
                     self.events
                         .insert(0, format!("{} is already in {}", name, channel));
-                    ctx.request_repaint();
                 }
                 ChannelMessage::UserLeftChannel(name, channel) => {
                     self.events.insert(0, format!("{} left {}", name, channel));
-                    ctx.request_repaint();
                 }
                 ChannelMessage::UserDeafened(name, channel) => {
                     self.events
                         .insert(0, format!("{} deafened in {}", name, channel));
-                    ctx.request_repaint();
                 }
                 ChannelMessage::UserUndeafened(name, channel) => {
                     self.events
                         .insert(0, format!("{} undeafened in {}", name, channel));
-                    ctx.request_repaint();
                 }
                 ChannelMessage::UserMuted(name, channel) => {
                     self.events
                         .insert(0, format!("{} muted in {}", name, channel));
-                    ctx.request_repaint();
                 }
                 ChannelMessage::UserUnmuted(name, channel) => {
                     self.events
                         .insert(0, format!("{} unmuted in {}", name, channel));
-                    ctx.request_repaint();
                 }
                 ChannelMessage::UserMoved(name, old_channel, new_channel) => {
                     self.events.insert(
                         0,
                         format!("{} moved from {} to {}", name, old_channel, new_channel),
                     );
-                    ctx.request_repaint();
+                }
+                ChannelMessage::Custom(event) => {
+                    self.events.insert(0, event);
+                }
+
+                ChannelMessage::DebugData(old_state, new_state) => {
+                    self.debug_events.push((old_state, new_state));
                 }
             }
 
@@ -164,6 +174,137 @@ impl eframe::App for AppModel {
                         }
                     });
             });
+
+        // ! Debug info
+        if self.show_debug_info.load(Ordering::Relaxed) {
+            let show_deferred_viewport = self.show_debug_info.clone();
+            let is_custom_frame = self.is_custom_frame;
+            let debug_events = self.debug_events.clone();
+
+            ctx.show_viewport_deferred(
+                ViewportId::from_hash_of("debug_info_viewport"),
+                ViewportBuilder::default()
+                    .with_title("Debug Info")
+                    .with_inner_size([200.0, 100.0]),
+                move |ctx, class| {
+                    assert!(
+                        class == egui::ViewportClass::Deferred,
+                        "This egui backend doesn't support multiple viewports"
+                    );
+
+                    egui::CentralPanel::default()
+                        .frame({
+                            if is_custom_frame {
+                                egui::Frame {
+                                    fill: ctx.style().visuals.window_fill(),
+                                    rounding: 10.0.into(),
+                                    stroke: Stroke {
+                                        width: 0.5,
+                                        color: Color32::LIGHT_GRAY,
+                                    },
+                                    outer_margin: 0.0.into(),
+                                    inner_margin: Margin::same(8.0),
+                                    shadow: Shadow::default(),
+                                }
+                            } else {
+                                let available_rect = ctx.available_rect();
+                                let layer_id = LayerId::background();
+                                let id = Id::new("central_panel_debug");
+                                let ui_builder = UiBuilder::new().max_rect(available_rect);
+                                let panel_ui = Ui::new(ctx.clone(), layer_id, id, ui_builder);
+                                egui::Frame::central_panel(panel_ui.style())
+                            }
+                        })
+                        .show(ctx, |ui| {
+                            // ! Custom frame
+                            if is_custom_frame {
+                                let app_rect = ui.max_rect();
+
+                                let title_bar_height = 32.0;
+                                let title_bar_rect = {
+                                    let mut rect = app_rect;
+                                    rect.max.y = rect.min.y + title_bar_height;
+                                    rect
+                                };
+                                title_bar_ui(ui, title_bar_rect, "Discord Watcher");
+                                ui.add_space(1.5);
+                                ui.separator();
+                                ui.add_space(3.);
+                            }
+
+                            // ! Title
+                            ui.allocate_ui(vec2(ui.available_size_before_wrap().x, 30.), |ui| {
+                                ui.centered_and_justified(|ui| {
+                                    ui.label(
+                                        RichText::new("Debug Info").strong().heading().size(20.),
+                                    );
+                                });
+                            });
+
+                            ui.separator();
+
+                            // ! Events list
+                            ScrollArea::new([false, true])
+                                .auto_shrink([false; 2])
+                                .drag_to_scroll(true)
+                                .show(ui, |ui| {
+                                    let font_size = 16.;
+                                    for (idx, event) in debug_events.iter().enumerate() {
+                                        ui.allocate_ui(
+                                            vec2(ui.available_size_before_wrap().x, 20.),
+                                            |ui| {
+                                                ui.label(
+                                                    RichText::new("Old State")
+                                                        .strong()
+                                                        .heading()
+                                                        .size(10.),
+                                                );
+                                            },
+                                        );
+
+                                        let old_state =
+                                            RichText::new(format!("{:?}", event.0)).small();
+                                        ui.allocate_ui(
+                                            vec2(ui.available_size_before_wrap().x, 15.),
+                                            |ui| {
+                                                ui.label(old_state.size(font_size));
+                                            },
+                                        );
+
+                                        ui.allocate_ui(
+                                            vec2(ui.available_size_before_wrap().x, 20.),
+                                            |ui| {
+                                                ui.label(
+                                                    RichText::new("New State")
+                                                        .strong()
+                                                        .heading()
+                                                        .size(10.),
+                                                );
+                                            },
+                                        );
+
+                                        let new_state =
+                                            RichText::new(format!("{:?}", event.1)).small();
+                                        ui.allocate_ui(
+                                            vec2(ui.available_size_before_wrap().x, 15.),
+                                            |ui| {
+                                                ui.label(new_state.size(font_size));
+                                            },
+                                        );
+
+                                        if idx < debug_events.len() - 1 {
+                                            ui.separator();
+                                        }
+                                    }
+                                });
+                        });
+
+                    if ctx.input(|i| i.viewport().close_requested()) {
+                        show_deferred_viewport.store(false, Ordering::Relaxed);
+                    }
+                },
+            );
+        }
     }
 }
 

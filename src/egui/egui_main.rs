@@ -7,7 +7,7 @@ pub fn start_egui() -> eframe::Result<()> {
     use serenity::{prelude::GatewayIntents, Client};
     use tokio::{runtime::Runtime, sync::mpsc};
 
-    use crate::{discord::DiscordEventHandler, egui::egui_app::AppModel, enums::ChannelMessage};
+    use crate::{discord::DiscordEventHandler, egui::app::AppModel, enums::ChannelMessage};
 
     // * Create tokio runtime
     let rt = Runtime::new().expect("Unable to create Runtime");

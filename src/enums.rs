@@ -1,4 +1,4 @@
-use serenity::model::prelude::Ready;
+use serenity::model::{prelude::Ready, voice::VoiceState};
 
 pub enum ChannelMessage {
     BotConnected(Box<Ready>),
@@ -10,6 +10,9 @@ pub enum ChannelMessage {
     UserUndeafened(String, String),
     UserMoved(String, String, String),
     UserLeftChannel(String, String),
+    Custom(String),
+
+    DebugData(Option<VoiceState>, VoiceState),
 }
 
 #[derive(Debug, Clone, Copy)]

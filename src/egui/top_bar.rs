@@ -1,13 +1,20 @@
+use std::sync::atomic::Ordering;
+
 use egui::{menu, RichText, Ui, ViewportCommand, WindowLevel};
 
-use super::egui_app::AppModel;
+use super::app::AppModel;
 
 pub fn render_top_bar(app: &mut AppModel, ui: &mut Ui) {
     ui.add_enabled_ui(true, |ui| {
         menu::bar(ui, |ui| {
             ui.menu_button("App", |ui| {
+                if ui.button("Debug").clicked() {
+                    app.show_debug_info.store(true, Ordering::Relaxed);
+                    ui.close_menu();
+                }
                 if ui.button("Exit").clicked() {
                     ui.ctx().send_viewport_cmd(ViewportCommand::Close);
+                    ui.close_menu();
                 }
             });
 

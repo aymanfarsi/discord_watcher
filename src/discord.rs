@@ -1,3 +1,6 @@
+use std::sync::Arc;
+
+use lazy_static::lazy_static;
 use serenity::{
     async_trait,
     model::{
@@ -7,12 +10,16 @@ use serenity::{
     },
     prelude::{Context, EventHandler},
 };
-use tokio::sync::mpsc::Sender;
+use tokio::sync::{mpsc::Sender, Mutex};
 
 use crate::{
     enums::ChannelMessage,
     utils::{play_sound, push_notification},
 };
+
+lazy_static! {
+    static ref OLD_STATE: Arc<Mutex<Option<VoiceState>>> = Arc::new(Mutex::new(None));
+}
 
 pub struct DiscordEventHandler {
     pub tx: Sender<ChannelMessage>,
@@ -88,6 +95,23 @@ impl EventHandler for DiscordEventHandler {
         old_state: Option<VoiceState>,
         new_state: VoiceState,
     ) {
+        let old_state = match old_state {
+            Some(state) => Some(state),
+            None => match OLD_STATE.lock().await.clone() {
+                Some(state) => Some(state),
+                None => None,
+            },
+        };
+
+        self.tx
+            .send(ChannelMessage::DebugData(
+                old_state.clone(),
+                new_state.clone(),
+            ))
+            .await
+            .unwrap();
+        self.ctx.request_repaint();
+
         let old_user = match old_state.clone() {
             Some(old) => match old.user_id.to_user_cached(&ctx.cache).await {
                 Some(user) => Some(user),
@@ -136,57 +160,41 @@ impl EventHandler for DiscordEventHandler {
         };
 
         // check if user joined a voice channel, muted, deafened, moved to another voice channel, or left a voice channel
-        if old_state.is_none() && new_state.channel_id.is_some() {
+        if old_state.is_some() && new_state.channel_id.is_none() {
             push_notification(&format!(
-                "{} joined {}",
-                new_user.name.clone(),
-                new_voice_channel.clone().unwrap().name.clone()
+                "{} left {}",
+                old_user.clone().unwrap().name.clone(),
+                old_voice_channel.clone().unwrap().name.clone()
             ));
             play_sound();
 
             self.tx
-                .send(ChannelMessage::UserJoinedChannel(
-                    new_user.name.clone(),
-                    new_voice_channel.clone().unwrap().name.clone(),
+                .send(ChannelMessage::UserLeftChannel(
+                    old_user.clone().unwrap().name.clone(),
+                    old_voice_channel.clone().unwrap().name.clone(),
                 ))
                 .await
                 .unwrap();
             self.ctx.request_repaint();
         } else if old_state.is_some() && new_state.channel_id.is_some() {
-            if old_state.clone().unwrap().self_mute != new_state.self_mute {
-                if new_state.self_mute {
-                    push_notification(&format!(
-                        "{} muted themselves in {}",
-                        new_user.name.clone(),
-                        new_voice_channel.clone().unwrap().name.clone()
-                    ));
-                    play_sound();
+            if old_state.clone().unwrap().channel_id != new_state.channel_id {
+                push_notification(&format!(
+                    "{} moved from {} to {}",
+                    new_user.name.clone(),
+                    old_voice_channel.clone().unwrap().name.clone(),
+                    new_voice_channel.clone().unwrap().name.clone()
+                ));
+                play_sound();
 
-                    self.tx
-                        .send(ChannelMessage::UserMuted(
-                            new_user.name.clone(),
-                            new_voice_channel.clone().unwrap().name.clone(),
-                        ))
-                        .await
-                        .unwrap();
-                    self.ctx.request_repaint();
-                } else {
-                    push_notification(&format!(
-                        "{} unmuted themselves in {}",
+                self.tx
+                    .send(ChannelMessage::UserMoved(
                         new_user.name.clone(),
-                        new_voice_channel.clone().unwrap().name.clone()
-                    ));
-                    play_sound();
-
-                    self.tx
-                        .send(ChannelMessage::UserUnmuted(
-                            new_user.name.clone(),
-                            new_voice_channel.clone().unwrap().name.clone(),
-                        ))
-                        .await
-                        .unwrap();
-                    self.ctx.request_repaint();
-                }
+                        old_voice_channel.clone().unwrap().name.clone(),
+                        new_voice_channel.clone().unwrap().name.clone(),
+                    ))
+                    .await
+                    .unwrap();
+                self.ctx.request_repaint();
             } else if old_state.clone().unwrap().self_deaf != new_state.self_deaf {
                 if new_state.self_deaf {
                     push_notification(&format!(
@@ -221,43 +229,68 @@ impl EventHandler for DiscordEventHandler {
                         .unwrap();
                     self.ctx.request_repaint();
                 }
-            } else if old_state.unwrap().channel_id != new_state.channel_id {
-                push_notification(&format!(
-                    "{} moved from {} to {}",
-                    new_user.name.clone(),
-                    old_voice_channel.clone().unwrap().name.clone(),
-                    new_voice_channel.clone().unwrap().name.clone()
-                ));
-                play_sound();
-
-                self.tx
-                    .send(ChannelMessage::UserMoved(
+            } else if old_state.clone().unwrap().self_mute != new_state.self_mute {
+                if new_state.self_mute {
+                    push_notification(&format!(
+                        "{} muted themselves in {}",
                         new_user.name.clone(),
-                        old_voice_channel.clone().unwrap().name.clone(),
-                        new_voice_channel.clone().unwrap().name.clone(),
-                    ))
-                    .await
-                    .unwrap();
-                self.ctx.request_repaint();
+                        new_voice_channel.clone().unwrap().name.clone()
+                    ));
+                    play_sound();
+
+                    self.tx
+                        .send(ChannelMessage::UserMuted(
+                            new_user.name.clone(),
+                            new_voice_channel.clone().unwrap().name.clone(),
+                        ))
+                        .await
+                        .unwrap();
+                    self.ctx.request_repaint();
+                } else {
+                    push_notification(&format!(
+                        "{} unmuted themselves in {}",
+                        new_user.name.clone(),
+                        new_voice_channel.clone().unwrap().name.clone()
+                    ));
+                    play_sound();
+
+                    self.tx
+                        .send(ChannelMessage::UserUnmuted(
+                            new_user.name.clone(),
+                            new_voice_channel.clone().unwrap().name.clone(),
+                        ))
+                        .await
+                        .unwrap();
+                    self.ctx.request_repaint();
+                }
             }
-        } else if old_state.is_some() && new_state.channel_id.is_none() {
+        } else if old_state.is_none() && new_state.channel_id.is_some() {
             push_notification(&format!(
-                "{} left {}",
-                old_user.clone().unwrap().name.clone(),
-                old_voice_channel.clone().unwrap().name.clone()
+                "{} joined {}",
+                new_user.name.clone(),
+                new_voice_channel.clone().unwrap().name.clone()
             ));
             play_sound();
 
             self.tx
-                .send(ChannelMessage::UserLeftChannel(
-                    old_user.clone().unwrap().name.clone(),
-                    old_voice_channel.clone().unwrap().name.clone(),
+                .send(ChannelMessage::UserJoinedChannel(
+                    new_user.name.clone(),
+                    new_voice_channel.clone().unwrap().name.clone(),
                 ))
                 .await
                 .unwrap();
             self.ctx.request_repaint();
         } else {
-            println!("Unknown event");
+            self.tx
+                .send(ChannelMessage::Custom(format!(
+                    "Unknown event:\n\told_state: {:?}\n\tnew_state: {:?}",
+                    old_state, new_state
+                )))
+                .await
+                .unwrap();
+            self.ctx.request_repaint();
         }
+
+        *OLD_STATE.lock().await = Some(new_state.clone());
     }
 }
