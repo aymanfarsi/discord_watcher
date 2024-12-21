@@ -24,6 +24,8 @@ pub fn play_sound() {
     let file = BufReader::new(File::open("assets/notif_sound.wav").unwrap());
     // Decode that sound file into a source
     let source = Decoder::new_wav(file).unwrap();
+    // Reduce the volume by multiplying each sample by a factor (e.g., 0.5 for half volume)
+    let source = source.amplify(0.1);
     // Play the sound directly on the device
     match stream_handle.play_raw(source.convert_samples()) {
         Ok(_) => (),

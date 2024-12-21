@@ -62,7 +62,7 @@ pub fn start_egui() -> eframe::Result<()> {
                     .expect("Err creating client");
 
                 if let Err(why) = client.start_shards(1).await {
-                    println!("Client error: {:?}", why);
+                    eprintln!("Client error: {:?}", why);
                 }
             });
 

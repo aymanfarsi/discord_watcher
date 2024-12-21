@@ -1,4 +1,6 @@
-use serenity::model::{prelude::Ready, voice::VoiceState};
+use serenity::model::prelude::Ready;
+
+use crate::discord::CustomVoiceState;
 
 pub enum ChannelMessage {
     BotConnected(Box<Ready>),
@@ -12,7 +14,7 @@ pub enum ChannelMessage {
     UserLeftChannel(String, String),
     Custom(String),
 
-    DebugData(Option<VoiceState>, VoiceState),
+    DebugData(CustomVoiceState, CustomVoiceState),
 }
 
 #[derive(Debug, Clone, Copy)]

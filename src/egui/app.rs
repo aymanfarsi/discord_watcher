@@ -5,14 +5,21 @@ use std::sync::{
 
 use egui::{
     vec2, Align2, Button, Color32, FontDefinitions, FontId, Id, LayerId, Margin, RichText,
-    ScrollArea, Sense, Shadow, Stroke, Ui, UiBuilder, ViewportBuilder, ViewportCommand, ViewportId,
+    ScrollArea, Sense, Shadow, Stroke, Ui, UiStackInfo, ViewportBuilder, ViewportCommand,
+    ViewportId,
 };
-use serenity::model::voice::VoiceState;
+use egui_struct::EguiStruct;
 use tokio::sync::mpsc::Receiver;
 
-use crate::enums::ChannelMessage;
+use crate::{discord::CustomVoiceState, enums::ChannelMessage};
 
 use super::top_bar::render_top_bar;
+
+#[derive(Debug, Clone)]
+struct DebugVoiceState {
+    old_state: CustomVoiceState,
+    new_state: CustomVoiceState,
+}
 
 pub struct AppModel {
     pub bot_name: Option<String>,
@@ -23,7 +30,7 @@ pub struct AppModel {
     pub is_custom_frame: bool,
 
     pub show_debug_info: Arc<AtomicBool>,
-    debug_events: Vec<(Option<VoiceState>, VoiceState)>,
+    debug_events: Vec<DebugVoiceState>,
 
     rx: Receiver<ChannelMessage>,
 }
@@ -94,7 +101,10 @@ impl eframe::App for AppModel {
                 }
 
                 ChannelMessage::DebugData(old_state, new_state) => {
-                    self.debug_events.push((old_state, new_state));
+                    self.debug_events.push(DebugVoiceState {
+                        old_state,
+                        new_state,
+                    });
                 }
             }
 
@@ -117,11 +127,13 @@ impl eframe::App for AppModel {
                         shadow: Shadow::default(),
                     }
                 } else {
+                    let info = UiStackInfo::default();
                     let available_rect = ctx.available_rect();
                     let layer_id = LayerId::background();
                     let id = Id::new("central_panel");
-                    let ui_builder = UiBuilder::new().max_rect(available_rect);
-                    let panel_ui = Ui::new(ctx.clone(), layer_id, id, ui_builder);
+                    let clip_rect = ctx.screen_rect();
+                    let panel_ui =
+                        Ui::new(ctx.clone(), layer_id, id, available_rect, clip_rect, info);
                     egui::Frame::central_panel(panel_ui.style())
                 }
             })
@@ -207,11 +219,19 @@ impl eframe::App for AppModel {
                                     shadow: Shadow::default(),
                                 }
                             } else {
+                                let info = UiStackInfo::default();
                                 let available_rect = ctx.available_rect();
                                 let layer_id = LayerId::background();
                                 let id = Id::new("central_panel_debug");
-                                let ui_builder = UiBuilder::new().max_rect(available_rect);
-                                let panel_ui = Ui::new(ctx.clone(), layer_id, id, ui_builder);
+                                let clip_rect = ctx.screen_rect();
+                                let panel_ui = Ui::new(
+                                    ctx.clone(),
+                                    layer_id,
+                                    id,
+                                    available_rect,
+                                    clip_rect,
+                                    info,
+                                );
                                 egui::Frame::central_panel(panel_ui.style())
                             }
                         })
@@ -250,46 +270,16 @@ impl eframe::App for AppModel {
                                 .show(ui, |ui| {
                                     let font_size = 16.;
                                     for (idx, event) in debug_events.iter().enumerate() {
-                                        ui.allocate_ui(
-                                            vec2(ui.available_size_before_wrap().x, 20.),
-                                            |ui| {
-                                                ui.label(
-                                                    RichText::new("Old State")
-                                                        .strong()
-                                                        .heading()
-                                                        .size(10.),
-                                                );
-                                            },
+                                        event.clone().old_state.show_top(
+                                            ui,
+                                            RichText::new("Old State").strong().size(font_size),
+                                            None,
                                         );
 
-                                        let old_state =
-                                            RichText::new(format!("{:?}", event.0)).small();
-                                        ui.allocate_ui(
-                                            vec2(ui.available_size_before_wrap().x, 15.),
-                                            |ui| {
-                                                ui.label(old_state.size(font_size));
-                                            },
-                                        );
-
-                                        ui.allocate_ui(
-                                            vec2(ui.available_size_before_wrap().x, 20.),
-                                            |ui| {
-                                                ui.label(
-                                                    RichText::new("New State")
-                                                        .strong()
-                                                        .heading()
-                                                        .size(10.),
-                                                );
-                                            },
-                                        );
-
-                                        let new_state =
-                                            RichText::new(format!("{:?}", event.1)).small();
-                                        ui.allocate_ui(
-                                            vec2(ui.available_size_before_wrap().x, 15.),
-                                            |ui| {
-                                                ui.label(new_state.size(font_size));
-                                            },
+                                        event.clone().new_state.show_top(
+                                            ui,
+                                            RichText::new("New State").strong().size(font_size),
+                                            None,
                                         );
 
                                         if idx < debug_events.len() - 1 {
@@ -340,8 +330,8 @@ fn title_bar_ui(ui: &mut Ui, title_bar_rect: egui::Rect, title: &str) {
         ui.ctx().send_viewport_cmd(ViewportCommand::StartDrag);
     }
 
-    let ui_builder = UiBuilder::new().max_rect(title_bar_rect);
-    ui.allocate_new_ui(ui_builder, |ui| {
+    let max_rect = title_bar_rect.shrink(4.0);
+    ui.allocate_ui_at_rect(max_rect, |ui| {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.spacing_mut().item_spacing.x = 0.0;
             ui.visuals_mut().button_frame = false;

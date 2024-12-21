@@ -1,8 +1,11 @@
 use std::sync::Arc;
 
+use egui_struct::EguiStruct;
 use lazy_static::lazy_static;
 use serenity::{
     async_trait,
+    cache::Cache,
+    http::Http,
     model::{
         prelude::{ChannelType, Ready},
         user::OnlineStatus,
@@ -19,6 +22,85 @@ use crate::{
 
 lazy_static! {
     static ref OLD_STATE: Arc<Mutex<Option<VoiceState>>> = Arc::new(Mutex::new(None));
+}
+
+#[derive(Debug, Clone, EguiStruct)]
+pub struct CustomVoiceState {
+    pub guild_name: String,
+    pub channel_name: String,
+    pub self_deaf: bool,
+    pub self_mute: bool,
+    pub self_stream: bool,
+    pub self_video: bool,
+    pub username: String,
+}
+
+impl CustomVoiceState {
+    async fn new(state: Option<VoiceState>, cache: &Arc<Cache>, http: &Arc<Http>) -> Self {
+        if state.is_none() {
+            return CustomVoiceState {
+                guild_name: String::default(),
+                channel_name: String::default(),
+                self_deaf: false,
+                self_mute: false,
+                self_stream: false,
+                self_video: false,
+                username: String::default(),
+            };
+        }
+
+        let state = state.unwrap();
+
+        let channel_name = match state.channel_id {
+            Some(channel_id) => match channel_id.to_channel_cached(cache) {
+                Some(channel) => Some(channel.guild().unwrap()),
+                None => Some(
+                    state
+                        .channel_id
+                        .unwrap()
+                        .to_channel(http)
+                        .await
+                        .unwrap()
+                        .guild()
+                        .unwrap(),
+                ),
+            },
+            None => None,
+        };
+        let channel_name = match channel_name {
+            Some(channel) => channel.name,
+            None => String::default(),
+        };
+
+        let guild_name = match state.guild_id {
+            Some(guild_id) => match guild_id.name(cache) {
+                Some(guild) => guild,
+                None => match guild_id.to_guild_cached(cache) {
+                    Some(guild) => guild.name,
+                    None => String::default(),
+                },
+            },
+            None => String::default(),
+        };
+
+        let username = match state.user_id.to_user_cached(cache).await {
+            Some(user) => user.name,
+            None => match state.user_id.to_user(http).await {
+                Ok(user) => user.name,
+                Err(_) => String::default(),
+            },
+        };
+
+        CustomVoiceState {
+            guild_name,
+            channel_name,
+            self_deaf: state.self_deaf,
+            self_mute: state.self_mute,
+            self_stream: state.self_stream.unwrap_or(false),
+            self_video: state.self_video,
+            username,
+        }
+    }
 }
 
 pub struct DiscordEventHandler {
@@ -105,8 +187,8 @@ impl EventHandler for DiscordEventHandler {
 
         self.tx
             .send(ChannelMessage::DebugData(
-                old_state.clone(),
-                new_state.clone(),
+                CustomVoiceState::new(old_state.clone(), &ctx.cache, &ctx.http).await,
+                CustomVoiceState::new(Some(new_state.clone()), &ctx.cache, &ctx.http).await,
             ))
             .await
             .unwrap();

@@ -27,8 +27,6 @@ fn main() {
             eprintln!("GTK is not supported yet. Please use `egui` as an argument.");
         }
         Some(_) | None => {
-            println!("Defaulting to egui");
-
             start_egui().expect("Failed to start egui");
         }
     }
